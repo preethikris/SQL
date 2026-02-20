@@ -3,7 +3,6 @@
 This repository contains my solutions for the Pizza Runner case study from the 8 Week SQL Challenge. The project focuses on cleaning messy data, analyzing customer orders, and evaluating runner performance using SQL.
 
 
-
 ## 📚 What I practiced
 
 In this solution file, I worked on:
