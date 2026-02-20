@@ -1,1 +1,14 @@
+#How many customers has Foodie-Fi ever had?**
 
+````sql
+  Select count(distinct customer_id)as total_customer 
+  from subscriptions ; 
+````
+#### Steps:
+- Use the subscriptions table because it contains all customers.
+- Count distinct customer_id since one customer can have multiple records.
+- Apply COUNT(DISTINCT customer_id).
+
+#### Answer:
+1000 customers
+***
