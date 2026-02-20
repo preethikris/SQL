@@ -2,7 +2,8 @@
 
 This repository contains my solutions for the Foodie-Fi case study from the 8 Week SQL Challenge. The project focuses on analyzing subscription behavior, customer growth, and revenue patterns using SQL.
 
-https://8weeksqlchallenge.com/images/case-study-designs/3.png
+<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/8d7e4531-b760-43f6-abad-c307b47ebc91" />
+
 
 ## 📚 What I practiced
 
