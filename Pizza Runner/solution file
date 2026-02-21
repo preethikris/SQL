@@ -1,1 +1,305 @@
+## A. Pizza Metrics
+## How many pizzas were ordered **
+````sql
+select count(order_id) AS total_pizzas_ordered
+from customer_orders ;
+````
+#### Steps:
+- Use the customer_orders table because it stores all pizza orders.
+- Each row represents a single pizza ordered.
+- Apply COUNT(*) to calculate the total number of pizzas ordered.
+#### Answer:
+| total_pizzas_ordered |
+| -------------------- |
+|   14                 |
+***
+## How many unique customer orders were made? **
+````sql
+SELECT COUNT(DISTINCT order_id) AS unique_orders
+FROM customer_orders;
+````
+#### Steps:
+- Use the customer_orders table because it stores order information.
+- A single order can contain multiple pizzas → duplicate order_id values exist.
+- Apply COUNT(DISTINCT order_id) to count only unique orders.
+#### Answer:
+| unique_orders |
+| ------------- |
+|   10          |
 
+***
+## How many successful orders were delivered by each runner? **
+````sql
+SELECT
+runner_id,
+COUNT(order_id) AS successful_orders
+FROM runner_orders
+WHERE cancellation IS NULL
+GROUP BY runner_id
+ORDER BY runner_id;
+````
+#### Steps:
+- Use the runner_orders table because it contains delivery details.
+- Successful deliveries are those where cancellation is NULL.
+- Apply COUNT(order_id) to count delivered orders.
+- Use GROUP BY runner_id to calculate deliveries per runner.
+#### Answer:
+| runner_id | successful_orders |
+| --------- | ----------------- |
+| 1         | 4                 |
+| 2         | 3                 |
+| 3         | 1                 |
+
+***
+## How many of each type of pizza was delivered? **
+````sql
+SELECT
+p.pizza_name,
+COUNT(*) AS delivered_pizzas
+FROM pizza_names p
+JOIN customer_orders c ON p.pizza_id = c.pizza_id
+JOIN runner_orders r ON r.order_id = c.order_id
+WHERE r.cancellation IS NULL
+GROUP BY p.pizza_name;
+````
+#### Steps:
+- Use pizza_names to get pizza names.
+- Join customer_orders to link pizzas with orders.
+- Join runner_orders to identify delivered orders.
+- Filter only successful deliveries using cancellation IS NULL.
+- Use COUNT to count pizzas delivered.
+- Apply GROUP BY pizza_name.
+
+#### Answer:
+| pizza_name  | delivered_pizzas |
+| ----------- | ---------------- |
+| Meat Lovers | 9                |
+| Vegetarian  | 3                |
+
+***
+## How many Vegetarian and Meatlovers were ordered by each customer? **
+````sql
+select pizza_name,customer_id,count(customer_id) as pizza_count from pizza_names p
+Join customer_orders c On p.pizza_id=c.pizza_id
+where pizza_name IN ('Meatlovers','Vegetarian')
+group by pizza_name,customer_id;
+````
+#### Steps:
+- Use pizza_names to get pizza type.
+- Join customer_orders to link pizzas with customers.
+- Filter only Meat Lovers and Vegetarian pizzas.
+- Use COUNT to count pizzas ordered per customer.
+- Apply GROUP BY pizza_name, customer_id.
+#### Answer:
+| pizza_name | customer_id | pizza_count |
+| ---------- | ----------- | ----------- |
+| Meatlovers | 101         | 2           |
+| Meatlovers | 102         | 2           |
+| Vegetarian | 102         | 1           |
+| Meatlovers | 103         | 3           |
+| Vegetarian | 103         | 1           |
+| Meatlovers | 104         | 3           |
+| Vegetarian | 101         | 1           |
+| Vegetarian | 105         | 1           |
+
+***
+## What was the maximum number of pizzas delivered in a single order? **
+````sql
+SELECT MAX(number_pizza)
+FROM (
+SELECT
+c.order_id,
+COUNT(*) AS number_pizza
+FROM customer_orders c
+JOIN runner_orders r
+ON c.order_id = r.order_id
+WHERE r.cancellation IS NULL
+GROUP BY c.order_id
+) AS T;
+````
+#### Steps:
+- Use customer_orders to count pizzas per order.
+- Join runner_orders to identify delivered orders.
+- Filter only successful deliveries using cancellation IS NULL.
+- Use GROUP BY order_id to count pizzas per order.
+- Apply MAX to find the highest pizza count in a single order.
+
+#### Answer:
+| max(number_pizza) |
+| ----------------- |
+|   3               |
+***
+#For each customer, how many delivered pizzas had at least 1 change and how many had no changes?**
+````sql
+SELECT
+c.customer_id,
+SUM(
+CASE
+WHEN (c.exclusions IS NOT NULL AND c.exclusions <> 'null')
+OR (c.extras IS NOT NULL AND c.extras <> 'null')
+THEN 1 ELSE 0
+END
+) AS pizzas_with_changes,
+SUM(
+CASE
+WHEN (c.exclusions IS NULL OR c.exclusions = 'null')
+AND (c.extras IS NULL OR c.extras = 'null')
+THEN 1 ELSE 0
+END
+) AS pizzas_no_changes
+FROM customer_orders c
+JOIN runner_orders r
+ON c.order_id = r.order_id
+WHERE r.cancellation IS NULL
+GROUP BY c.customer_id
+ORDER BY c.customer_id;
+````
+#### Steps:
+- Use customer_orders to check pizza changes (exclusions, extras).
+- Join runner_orders to filter only delivered pizzas (cancellation IS NULL).
+- A pizza has changes if:
+  - exclusions ≠ NULL/‘null’
+  - OR extras ≠ NULL/‘null’
+- Use CASE statements to count:
+  - pizzas with changes
+  - pizzas without changes
+- Apply GROUP BY customer_id.
+#### Answer:
+| customer_id | pizzas_with_changes | pizzas_no_changes |
+| ----------- | ------------------- | ----------------- |
+| 101         | 1                   | 2                 |
+| 102         | 0                   | 3                 |
+| 103         | 3                   | 0                 |
+| 104         | 2                   | 1                 |
+| 105         | 1                   | 0                 |
+***
+## How many pizzas were delivered that had both exclusions and extras? **
+````sql
+SELECT COUNT(*) AS pizzas_with_both_changes
+FROM customer_orders c
+JOIN runner_orders r
+ON c.order_id = r.order_id
+WHERE r.cancellation IS NULL
+AND c.exclusions IS NOT NULL
+AND c.exclusions <> 'null'
+AND c.extras IS NOT NULL
+AND c.extras <> 'null';
+````
+#### Steps:
+- Use customer_orders to access exclusions and extras.
+- Join runner_orders to filter only delivered pizzas (cancellation IS NULL).
+- A pizza has both changes if:
+  - exclusions ≠ NULL / ‘null’
+  - AND extras ≠ NULL / ‘null’
+- Apply COUNT(*) to count such pizzas.
+#### Answer:
+| pizzas_with_both_changes |
+| ------------------------ |
+|   1                      |
+
+***
+## What was the total volume of pizzas ordered for each hour of the day? **
+````sql
+SELECT 
+HOUR(order_time) AS each_hour,
+COUNT(*) AS total_pizzas
+FROM customer_orders
+GROUP BY HOUR(order_time)
+ORDER BY each_hour;
+````
+#### Steps:
+- Use customer_orders since each row represents one pizza.
+- Extract hour from order_time using HOUR().
+- Use COUNT(*) to count pizzas per hour.
+- Apply GROUP BY HOUR(order_time).
+- Use ORDER BY for chronological order.
+
+#### Answer:
+| each_hour | total_pizzas |
+| --------- | ------------ |
+| 11        | 1            |
+| 13        | 3            |
+| 18        | 3            |
+| 19        | 1            |
+| 21        | 3            |
+| 23        | 3            |
+
+***
+## What was the volume of orders for each day of the week? **
+````sql
+SELECT
+DAYNAME(order_time) AS day_name,
+COUNT(*) AS volume_orders
+FROM customer_orders
+GROUP BY day_name
+ORDER BY DAYOFWEEK(order_time);
+````
+#### Steps:
+- Use customer_orders because each row represents a pizza order.
+- Extract day of week from order_time using DAYNAME().
+- Use COUNT(*) to count orders per day.
+- Apply GROUP BY DAYNAME(order_time).
+- Sort results using DAYOFWEEK(order_time) to maintain chronological order.
+#### Answer:
+| day_name  | volume_orders |
+| --------- | ------------- |
+| Wednesday | 5             |
+| Thursday  | 3             |
+| Friday    | 1             |
+| Saturday  | 5             |
+***
+
+## B. Runner and Customer Experience
+
+## How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)? **
+````sql
+SELECT 
+FLOOR(DATEDIFF(registration_date,'2021-01-01')/7)+1 AS week_number,
+COUNT(*) AS runners_signed_up
+FROM runners
+GROUP BY week_number
+ORDER BY week_number;
+````
+#### Steps:
+- Use the runners table because it stores registration dates.
+- Define week start = 2021-01-01.
+- Calculate number of days from baseline using DATEDIFF.
+- Divide by 7 and apply FLOOR to convert to week number.
+- Add +1 so the first week becomes week 1.
+- Use COUNT(*) to count runners per week.
+- Apply GROUP BY week_number.
+#### Answer:
+| week_number | runners_signed_up |
+| ----------- | ----------------- |
+| 1           | 2                 |
+| 2           | 1                 |
+| 3           | 1                 |
+
+***
+## What was the average time in minutes it took for each runner to arrive at the Pizza Runner HQ to pickup the order? **
+````sql
+SELECT
+r.runner_id,
+AVG(TIMESTAMPDIFF(MINUTE, c.order_time, r.pickup_time)) AS avg_pickup_minutes
+FROM runner_orders r
+JOIN customer_orders c
+ON r.order_id = c.order_id
+WHERE r.pickup_time IS NOT NULL
+GROUP BY r.runner_id
+ORDER BY r.runner_id;
+````
+#### Steps:
+- Use customer_orders to get order_time.
+- Use runner_orders to get pickup_time.
+- Join both tables using order_id.
+- Filter only successful deliveries (pickup_time IS NOT NULL).
+- Use TIMESTAMPDIFF(MINUTE, order_time, pickup_time) to calculate arrival time.
+- Apply AVG to compute average pickup time per runner.
+- Use GROUP BY runner_id.
+#### Answer:
+| runner_id | avg_pickup_minutes |
+| --------- | ------------------ |
+| 1         | 10                 |
+| 2         | 23                 |
+| 3         | 15                 |
+***
