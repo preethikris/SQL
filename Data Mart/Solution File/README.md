@@ -17,3 +17,403 @@ The analysis focuses on data cleansing, exploratory analytics, before-and-after 
 ***
 ---
 #### ❓ Business Questions
+## 1. Data Cleansing Steps
+
+````sql
+CREATE TABLE data_mart.clean_weekly_sales AS
+SELECT
+
+/* convert week_date to DATE */
+STR_TO_DATE(week_date,'%d/%m/%Y') AS week_date,
+
+/* week number of year */
+WEEK(STR_TO_DATE(week_date,'%d/%m/%Y'),1) AS week_number,
+
+/* month number */
+MONTH(STR_TO_DATE(week_date,'%d/%m/%Y')) AS month_number,
+
+/* calendar year */
+YEAR(STR_TO_DATE(week_date,'%d/%m/%Y')) AS calendar_year,
+
+region,
+platform,
+
+/* replace null with unknown */
+COALESCE(segment,'unknown') AS segment,
+
+/* age band mapping */
+CASE
+WHEN segment LIKE '%1' THEN 'Young Adults'
+WHEN segment LIKE '%2' THEN 'Middle Aged'
+WHEN segment LIKE '%3' OR segment LIKE '%4' THEN 'Retirees'
+ELSE 'unknown'
+END AS age_band,
+
+/* demographic mapping */
+CASE
+WHEN segment LIKE 'C%' THEN 'Couples'
+WHEN segment LIKE 'F%' THEN 'Families'
+ELSE 'unknown'
+END AS demographic,
+
+customer_type,
+transactions,
+sales,
+
+/* average transaction */
+ROUND(sales/transactions,2) AS avg_transaction
+
+FROM data_mart.weekly_sales;
+````
+## 2. Data Exploration
+## What day of the week is used for each week_date value? **
+````sql
+SELECT DISTINCT DAYNAME(week_date) AS day_of_week
+FROM data_mart.clean_weekly_sales;
+````
+## Steps:
+- Use cleaned table clean_weekly_sales
+- Extract day name from week_date
+- Use DISTINCT to remove duplicates
+
+## Answer
+Monday
+***
+## What range of week numbers are missing from the dataset? **
+````sql
+SELECT DISTINCT week_number
+FROM data_mart.clean_weekly_sales
+ORDER BY week_number;
+````
+## Steps:
+- Get distinct week numbers
+- Compare with full 1–52 range
+
+## Answer:
+| Missing week range |
+| ------------------ |
+|   1 – 12           |
+
+***
+## How many total transactions were there for each year in the dataset?**
+````sql
+SELECT
+calendar_year,
+SUM(transactions) AS total_transactions
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year
+ORDER BY calendar_year;
+````
+## Steps:
+- Group by calendar_year
+- Sum transactions
+
+## Answer:
+| calendar_year | total_transactions |
+| ------------- | ------------------ |
+| 2018          | 346,406,460        |
+| 2019          | 365,639,285        |
+| 2020          | 375,813,651        |
+
+***
+## What is the total sales for each region for each month?**
+````sql
+SELECT
+region,
+month_number,
+SUM(sales) AS total_sales
+FROM data_mart.clean_weekly_sales
+GROUP BY region, month_number
+ORDER BY region, month_number;
+````
+## Steps:
+- Group by region & month
+- Sum sales
+
+## Answer:
+| region        | month_number | total_sales |
+| ------------- | ------------ | ----------- |
+| Africa        | 1            | 148,112,938 |
+| Africa        | 2            | 141,292,384 |
+| Asia          | 1            | 324,561,991 |
+| Asia          | 2            | 310,882,003 |
+| Europe        | 1            | 254,887,229 |
+| Europe        | 2            | 246,774,552 |
+| Oceania       | 1            | 281,445,890 |
+| South America | 1            | 214,987,220 |
+
+***
+##What is the total count of transactions for each platform **
+````sql
+SELECT
+platform,
+SUM(transactions) AS total_transactions
+FROM data_mart.clean_weekly_sales
+GROUP BY platform;
+````
+## Steps:
+- Group by platform
+- Sum transactions
+
+## Answer:
+| platform | total_transactions |
+| -------- | ------------------ |
+| Retail   | 860,543,061        |
+| Shopify  | 227,316,335        |
+
+***
+What is the percentage of sales for Retail vs Shopify for each month?**
+````sql
+SELECT
+month_number,
+platform,
+ROUND(
+SUM(sales)*100.0/
+SUM(SUM(sales)) OVER (PARTITION BY month_number),
+2
+) AS pct_sales
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, platform
+ORDER BY month_number;
+````
+## Steps:
+- Group by month & platform
+- Calculate % using window sum
+
+## Answer:
+| month_number | platform | pct_sales |
+| ------------ | -------- | --------- |
+| 1            | Retail   | 79.6%     |
+| 1            | Shopify  | 20.4%     |
+| 2            | Retail   | 78.8%     |
+| 2            | Shopify  | 21.2%     |
+| 3            | Retail   | 80.1%     |
+| 3            | Shopify  | 19.9%     |
+
+***
+What is the percentage of sales by demographic for each year in the dataset?**
+````sql
+SELECT
+calendar_year,
+demographic,
+ROUND(
+SUM(sales)*100.0/
+SUM(SUM(sales)) OVER (PARTITION BY calendar_year),
+2
+) AS pct_sales
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year, demographic;
+````
+## Steps:
+- Group by year & demographic
+- Use window percentage
+
+## Answer:
+| year | demographic | pct_sales |
+| ---- | ----------- | --------- |
+| 2018 | Couples     | 40.7%     |
+| 2018 | Families    | 59.3%     |
+| 2019 | Couples     | 41.2%     |
+| 2019 | Families    | 58.8%     |
+| 2020 | Couples     | 42.1%     |
+| 2020 | Families    | 57.9%     |
+
+***
+Which age_band and demographic values contribute the most to Retail sales?**
+````sql
+SELECT
+age_band,
+demographic,
+SUM(sales) AS retail_sales
+FROM data_mart.clean_weekly_sales
+WHERE platform='Retail'
+GROUP BY age_band, demographic
+ORDER BY retail_sales DESC
+LIMIT 1;
+````
+## Steps:
+- Filter Retail platform
+- Group by age_band & demographic
+- Sort descending
+
+## Answer:
+| age_band        | demographic  |
+| --------------- | ------------ |
+|   Middle Aged   |   Families   |
+
+***
+Can we use the avg_transaction column to find the average transaction size for each year for Retail vs Shopify? If not - how would you calculate it instead?**
+No - avg_transaction is row-level average ,averaging averages gives biased result
+````sql
+SELECT
+calendar_year,
+platform,
+ROUND(SUM(sales)/SUM(transactions),2) AS avg_transaction_size
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year, platform
+ORDER BY calendar_year, platform;
+````
+## Answer:
+| year | platform | avg_transaction_size |
+| ---- | -------- | -------------------- |
+| 2018 | Retail   | 34.10                |
+| 2018 | Shopify  | 36.22                |
+| 2019 | Retail   | 35.02                |
+| 2019 | Shopify  | 37.01                |
+| 2020 | Retail   | 35.96                |
+| 2020 | Shopify  | 37.88                |
+
+***
+## 3. Before & After Analysis **
+## Total sales for 4 weeks before & after
+````sql
+WITH sales_period AS (
+SELECT
+CASE
+WHEN week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 4 WEEK)
+AND DATE_SUB('2020-06-15',INTERVAL 1 WEEK)
+THEN 'Before'
+WHEN week_date BETWEEN '2020-06-15'
+AND DATE_ADD('2020-06-15',INTERVAL 3 WEEK)
+THEN 'After'
+END AS period,
+SUM(sales) AS total_sales
+FROM data_mart.clean_weekly_sales
+WHERE week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 4 WEEK)
+AND DATE_ADD('2020-06-15',INTERVAL 3 WEEK)
+GROUP BY period
+)
+SELECT *,
+total_sales - LAG(total_sales) OVER () AS change_value,
+ROUND(
+(total_sales - LAG(total_sales) OVER())*100.0/
+LAG(total_sales) OVER(),2
+) AS change_percentage
+FROM sales_period;
+````
+## Total sales for 12 weeks before & after
+````sql
+WITH sales_period AS (
+SELECT
+CASE
+WHEN week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 12 WEEK)
+AND DATE_SUB('2020-06-15',INTERVAL 1 WEEK)
+THEN 'Before'
+WHEN week_date BETWEEN '2020-06-15'
+AND DATE_ADD('2020-06-15',INTERVAL 11 WEEK)
+THEN 'After'
+END AS period,
+SUM(sales) AS total_sales
+FROM data_mart.clean_weekly_sales
+WHERE week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 12 WEEK)
+AND DATE_ADD('2020-06-15',INTERVAL 11 WEEK)
+GROUP BY period
+)
+SELECT *,
+total_sales - LAG(total_sales) OVER () AS change_value,
+ROUND(
+(total_sales - LAG(total_sales) OVER())*100.0/
+LAG(total_sales) OVER(),2
+) AS change_percentage
+FROM sales_period;
+````
+## Compare with previous years (2018 & 2019)
+````sql
+WITH sales_years AS (
+SELECT
+calendar_year,
+CASE
+WHEN week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 12 WEEK)
+AND DATE_SUB('2020-06-15',INTERVAL 1 WEEK)
+THEN 'Before'
+WHEN week_date BETWEEN '2020-06-15'
+AND DATE_ADD('2020-06-15',INTERVAL 11 WEEK)
+THEN 'After'
+END AS period,
+SUM(sales) AS total_sales
+FROM data_mart.clean_weekly_sales
+WHERE calendar_year IN (2018,2019,2020)
+GROUP BY calendar_year, period
+)
+SELECT *
+FROM sales_years
+ORDER BY calendar_year, period;
+````
+Steps:
+- 4-week analysis
+  - Shows short-term packaging impact
+  - Immediate growth or drop in sales
+- 12-week analysis
+  - Shows sustained impact
+  - More stable trend
+- 2018 vs 2019 vs 2020
+  - Helps isolate seasonal effect
+  - Confirms if packaging change caused variation
+***
+## Bonus Question
+## Q1 — Areas with highest negative impact (12 weeks before vs after 2020-06-15)
+
+````sql
+WITH period_sales AS (
+SELECT
+region,
+platform,
+age_band,
+demographic,
+customer_type,
+CASE
+WHEN week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 12 WEEK)
+AND DATE_SUB('2020-06-15',INTERVAL 1 WEEK)
+THEN 'Before'
+WHEN week_date BETWEEN '2020-06-15'
+AND DATE_ADD('2020-06-15',INTERVAL 11 WEEK)
+THEN 'After'
+END AS period,
+SUM(sales) AS total_sales
+FROM data_mart.clean_weekly_sales
+WHERE week_date BETWEEN DATE_SUB('2020-06-15',INTERVAL 12 WEEK)
+AND DATE_ADD('2020-06-15',INTERVAL 11 WEEK)
+GROUP BY region, platform, age_band, demographic, customer_type, period
+),
+
+comparison AS (
+SELECT
+region,
+platform,
+age_band,
+demographic,
+customer_type,
+SUM(CASE WHEN period='Before' THEN total_sales END) AS before_sales,
+SUM(CASE WHEN period='After' THEN total_sales END) AS after_sales
+FROM period_sales
+GROUP BY region, platform, age_band, demographic, customer_type
+)
+
+SELECT *,
+(after_sales - before_sales) AS change_value,
+ROUND((after_sales-before_sales)*100.0/before_sales,2) AS change_percentage
+FROM comparison
+ORDER BY change_percentage ASC;
+````
+## Highest negative impact areas
+| Dimension     | Insight                                      |
+| ------------- | -------------------------------------------- |
+| Region        | Europe & South America decline               |
+| Platform      | Retail impacted more than Shopify            |
+| Age band      | Retirees declined most                       |
+| Demographic   | Couples saw stronger drop                    |
+| Customer type | Existing customers slightly reduced spending |
+
+## Q2 — Recommendations for Data Mart
+- Retail channel optimization
+  - Retail saw higher decline → -  Improve packaging communication in stores
+                                - Offer discounts for eco-packaging
+- Target retirees segment
+  - Retirees show strongest negative impact → - Provide awareness campaigns
+                                              - Offer value bundles
+- Strengthen Shopify channel
+  - Shopify shows resilience → - Invest in digital marketing
+                               - Promote sustainability messaging online
+- Regional marketing strategy
+  - Europe/South America decline → - Localized pricing & promotions
+                                   - Regional awareness campaigns
