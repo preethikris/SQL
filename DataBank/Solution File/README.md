@@ -1,6 +1,21 @@
+# 🏦 Data Bank — SQL Case Study
 
+This folder contains my SQL solutions for the Data Bank case study from the 8 Week SQL Challenge.
+## 📌 Overview
+This case study analyzes customer banking behavior, node allocation patterns, transaction activity, and balance trends to generate financial insights and support data infrastructure planning.
+---
+## 🗂️ Tables Used
+- regions
+- customer_nodes
+- customer_transactions
+---
 
+## Entity Relationship Diagram
 
+<img width="796" height="342" alt="image" src="https://github.com/user-attachments/assets/4a6a662c-29a0-4953-bf0b-482c80dc5da0" />
+***
+---
+#### ❓ Business Questions
 ## A. Customer Nodes Exploration
 
 #How many unique nodes are there on the Data Bank system? **
