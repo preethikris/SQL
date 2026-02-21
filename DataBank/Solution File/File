@@ -1,2 +1,398 @@
+## A. Customer Nodes Exploration
 
+#How many unique nodes are there on the Data Bank system? **
 
+````sql
+Select count(distinct node_id) 
+from customer_nodes;
+````
+#### Steps:
+- Use COUNT(DISTINCT) to count only unique node values.
+- Query the customer_nodes table since node allocation is stored there.
+- Apply COUNT(DISTINCT node_id) to calculate the total number of nodes.
+
+#### Answer:
+5 nodes 
+***
+# What is the number of nodes per region?**
+````sql
+SELECT region_id,
+       COUNT(DISTINCT node_id) AS nodes_per_region
+FROM customer_nodes
+GROUP BY region_id
+ORDER BY region_id;
+````
+#### Steps:
+- GROUP BY region_id → separates data region-wise
+- COUNT(DISTINCT node_id) → counts unique nodes in each region
+- ORDER BY → displays results in sorted region order
+
+#### Answer:
+| region_id | nodes_per_region |
+| --------- | ---------------- |
+| 1         | 2                |
+| 2         | 2                |
+| 3         | 1                |
+| 4         | 2                |
+| 5         | 1                |
+***
+# How many customers are allocated to each region?**
+````sql
+SELECT region_id,
+       COUNT(DISTINCT customer_id) AS customers
+FROM customer_nodes
+GROUP BY region_id
+ORDER BY region_id;
+````
+#### Steps:
+- Use the customer_nodes table because it stores customer region allocation.
+- Apply GROUP BY region_id to separate customers by region.
+- Use COUNT(DISTINCT customer_id) to count only unique customers and avoid duplicates from node reallocation.
+- Use ORDER BY region_id to display results region-wise.
+
+#### Answer:
+| region_id | customers |
+| --------- | --------- |
+| 1         | 110       |
+| 2         | 105       |
+| 3         | 102       |
+| 4         | 95        |
+| 5         | 88        |
+***
+#How many days on average are customers reallocated to a different node? **
+````sql
+SELECT AVG(end_date - start_date) AS avg_days
+FROM customer_nodes
+WHERE end_date <> '1999-12-31';
+````
+#### Steps:
+- Use the customer_nodes table because it contains node allocation history.
+- Calculate allocation duration using end_date − start_date.
+- Apply AVG to compute the average reallocation time.
+
+#### Answer:
+15 days (average reallocation period)
+***
+# What is the median, 80th and 95th percentile for this same reallocation days metric for each region? **
+````sql
+SELECT
+region_id,
+PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY end_date - start_date) AS median,
+PERCENTILE_CONT(0.8) WITHIN GROUP (ORDER BY end_date - start_date) AS p80,
+PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY end_date - start_date) AS p95
+FROM customer_nodes
+WHERE end_date <> '1999-12-31'
+GROUP BY region_id
+ORDER BY region_id;
+````
+#### Steps:
+- Use the customer_nodes table because it stores allocation history.
+- Exclude rows where end_date = '1999-12-31' since these represent active allocations.
+- Calculate reallocation duration using end_date − start_date.
+- Apply PERCENTILE_CONT to compute median (50th), 80th, and 95th percentiles.
+- Use GROUP BY region_id to calculate metrics for each region.
+- Use ORDER BY region_id to display region-wise results.
+
+#### Answer:
+| region_id | median | p80 | p95 |
+| --------- | ------ | --- | --- |
+| 1         | 14     | 23  | 29  |
+| 2         | 15     | 24  | 30  |
+| 3         | 14     | 22  | 28  |
+| 4         | 15     | 25  | 31  |
+| 5         | 13     | 21  | 27  |
+***
+## B. Customer Transactions
+# What is the unique count and total amount for each transaction type?**
+````sql
+SELECT
+txn_type,
+COUNT(*) AS unique_count,
+SUM(txn_amount) AS total_amount
+FROM customer_transactions
+GROUP BY txn_type
+ORDER BY txn_type;
+````
+#### Steps:
+- Use the customer_transactions table because it stores all transaction history.
+- Apply GROUP BY txn_type to categorize transactions into deposit, purchase, and withdrawal.
+- Use COUNT(*) to calculate the total number of transactions for each type.
+- Use SUM(txn_amount) to compute the total amount for each transaction type.
+- Use ORDER BY txn_type to display results in sorted order.
+#### Answer:
+| txn_type   | unique_count | total_amount |
+| ---------- | ------------ | ------------ |
+| deposit    | 2671         | 1359168      |
+| purchase   | 1617         | 806537       |
+| withdrawal | 1580         | 793003       |
+
+***
+# What is the average total historical deposit counts and amounts for all customers?
+````sql
+WITH cte AS (
+SELECT
+customer_id,
+COUNT(*) AS deposit_count,
+SUM(txn_amount) AS deposit_amount
+FROM customer_transactions
+WHERE txn_type = 'deposit'
+GROUP BY customer_id
+)
+SELECT
+AVG(deposit_count) AS avg_deposit_count,
+AVG(deposit_amount) AS avg_deposit_amount
+FROM cte;
+````
+#### Steps:
+- Use the customer_transactions table because it stores transaction history.
+- Filter only deposit transactions using WHERE txn_type = 'deposit'.
+- Apply GROUP BY customer_id to calculate deposit metrics per customer.
+- Use COUNT(*) to compute total deposit count for each customer.
+- Use SUM(txn_amount) to calculate total deposit amount per customer.
+- Use a CTE (Common Table Expression) to store per-customer results.
+- Apply AVG on deposit count and deposit amount to calculate overall averages.
+#### Answer:
+| avg_deposit_count | avg_deposit_amount |
+| ----------------- | ------------------ |
+| 5.34              | 2718               |
+
+***
+# For each month - how many Data Bank customers make more than 1 deposit and either 1 purchase or 1 withdrawal in a single month? **
+````sql
+WITH cte AS (
+SELECT 
+customer_id,
+MONTH(txn_date) AS per_month,
+SUM(CASE WHEN txn_type='deposit' THEN 1 ELSE 0 END) AS deposit_count,
+SUM(CASE WHEN txn_type='purchase' THEN 1 ELSE 0 END) AS purchase_count,
+SUM(CASE WHEN txn_type='withdrawal' THEN 1 ELSE 0 END) AS withdrawal_count
+FROM customer_transactions
+GROUP BY customer_id, per_month
+)
+SELECT
+per_month,
+COUNT(customer_id) AS customer_count
+FROM cte
+WHERE deposit_count > 1
+AND (purchase_count >= 1 OR withdrawal_count >= 1)
+GROUP BY per_month
+ORDER BY per_month;
+````
+#### Steps:
+- Use customer_transactions table for transaction history.
+- Extract month using MONTH(txn_date) for monthly analysis.
+- Apply CASE statements to count deposit, purchase, and withdrawal transactions.
+- Use GROUP BY customer_id and month to compute monthly behavior.
+- Filter customers where:
+  - deposit_count > 1
+  - AND (purchase_count ≥ 1 OR withdrawal_count ≥ 1)
+- Apply GROUP BY month to count qualifying customers per month.
+
+#### Answer:
+| per_month | customer_count |
+| --------- | -------------- |
+| 1         | 88             |
+| 2         | 115            |
+| 3         | 137            |
+| 4         | 40             |
+
+***
+# What is the closing balance for each customer at the end of the month? **
+````sql
+WITH monthly_transactions AS (
+  SELECT
+    customer_id,
+    DATE_FORMAT(txn_date, '%Y-%m') AS txn_month,
+    SUM(
+      CASE 
+        WHEN txn_type = 'deposit' THEN txn_amount
+        ELSE -txn_amount
+      END
+    ) AS monthly_balance
+  FROM customer_transactions
+  GROUP BY customer_id, txn_month
+),
+closing_balance AS (
+  SELECT
+    customer_id,
+    txn_month,
+    SUM(monthly_balance) 
+      OVER (PARTITION BY customer_id ORDER BY txn_month) 
+      AS closing_balance
+  FROM monthly_transactions
+)
+SELECT
+  customer_id,
+  txn_month,
+  closing_balance
+FROM closing_balance
+ORDER BY customer_id, txn_month;
+````
+#### Steps:
+- Use the customer_transactions table because it stores all financial activity.
+- Convert txn_date into month format using DATE_FORMAT for monthly aggregation.
+- Use CASE statement to treat:
+  - deposits → positive amount
+  - purchases & withdrawals → negative amount
+- Apply GROUP BY customer_id and month to calculate monthly net balance.
+- Use a window function SUM OVER to compute the running balance per customer.
+- Apply PARTITION BY customer_id to calculate balance separately for each customer.
+- Use ORDER BY month to ensure proper chronological running balance.
+
+#### Answer:
+| customer_id | txn_month | closing_balance |
+| ----------- | --------- | --------------- |
+| 1           | 2020-01   | 312             |
+| 1           | 2020-03   | -640            |
+| 2           | 2020-01   | 549             |
+| 2           | 2020-03   | 610             |
+| 3           | 2020-01   | 144             |
+| 3           | 2020-02   | -821            |
+| 3           | 2020-03   | -1222           |
+| 3           | 2020-04   | -729            |
+| 4           | 2020-01   | 848             |
+| 4           | 2020-03   | 655             |
+| 5           | 2020-01   | 954             |
+| 5           | 2020-03   | -1923           |
+| 5           | 2020-04   | -2413           |
+| 6           | 2020-01   | 733             |
+| 6           | 2020-02   | -52             |
+| 6           | 2020-03   | 340             |
+| 7           | 2020-01   | 964             |
+| 7           | 2020-02   | 3173            |
+| 7           | 2020-03   | 2533            |
+| 7           | 2020-04   | 2623            |
+| 8           | 2020-01   | 587             |
+| 8           | 2020-02   | 407             |
+| 8           | 2020-03   | -57             |
+| 8           | 2020-04   | -1029           |
+| 9           | 2020-01   | 849             |
+| 9           | 2020-02   | 654             |
+| 9           | 2020-03   | 1584            |
+| 9           | 2020-04   | 862             |
+| 10          | 2020-01   | -1622           |
+| 10          | 2020-02   | -1342           |
+| 10          | 2020-03   | -2753           |
+| 10          | 2020-04   | -5090           |
+CONTINUE FOR ALL CUSTOMERS
+
+***
+# What is the percentage of customers who increase their closing balance by more than 5%? **
+````sql
+WITH monthly_balance AS (
+  SELECT
+    customer_id,
+    DATE_FORMAT(txn_date, '%Y-%m') AS txn_month,
+    SUM(
+      CASE 
+        WHEN txn_type = 'deposit' THEN txn_amount
+        ELSE -txn_amount
+      END
+    ) AS monthly_net
+  FROM customer_transactions
+  GROUP BY customer_id, txn_month
+),
+
+closing_balance AS (
+  SELECT
+    customer_id,
+    txn_month,
+    SUM(monthly_net) OVER (
+      PARTITION BY customer_id 
+      ORDER BY txn_month
+    ) AS closing_balance
+  FROM monthly_balance
+),
+
+balance_change AS (
+  SELECT
+    customer_id,
+    txn_month,
+    closing_balance,
+    LAG(closing_balance) OVER (
+      PARTITION BY customer_id 
+      ORDER BY txn_month
+    ) AS prev_balance
+  FROM closing_balance
+),
+
+increased_customers AS (
+  SELECT DISTINCT customer_id
+  FROM balance_change
+  WHERE prev_balance IS NOT NULL
+    AND closing_balance > prev_balance * 1.05
+)
+
+SELECT
+ROUND(
+COUNT(DISTINCT ic.customer_id) * 100.0 /
+COUNT(DISTINCT customer_id),
+2
+) AS percentage_customers_increased
+FROM customer_transactions ct
+LEFT JOIN increased_customers ic
+ON ct.customer_id = ic.customer_id;
+````
+#### Steps:
+- Uses CASE → monthly net balance
+- Uses window SUM OVER → running closing balance
+- Uses LAG → previous month comparison
+- Uses DISTINCT → avoids duplicate join inflation
+- Computes valid percentage
+
+#### Answer:
+65%
+***
+## C. Data Allocation Challenge
+````sql
+WITH running_balance AS (
+SELECT
+customer_id,
+txn_date,
+DATE_FORMAT(txn_date,'%Y-%m') AS txn_month,
+SUM(
+CASE
+WHEN txn_type='deposit' THEN txn_amount
+ELSE -txn_amount
+END
+) OVER (PARTITION BY customer_id ORDER BY txn_date) AS running_balance
+FROM customer_transactions
+),
+
+monthly_balance AS (
+SELECT
+customer_id,
+txn_month,
+MAX(running_balance) AS end_month_balance
+FROM running_balance
+GROUP BY customer_id, txn_month
+),
+
+balance_stats AS (
+SELECT
+customer_id,
+MIN(running_balance) AS min_balance,
+AVG(running_balance) AS avg_balance,
+MAX(running_balance) AS max_balance
+FROM running_balance
+GROUP BY customer_id
+)
+
+SELECT
+m.txn_month,
+
+/* Option 1 → previous month ending balance */
+SUM(m.end_month_balance) AS option1_month_end_data,
+
+/* Option 2 → average balance */
+SUM(b.avg_balance) AS option2_avg_data,
+
+/* Option 3 → real-time running balance */
+SUM(r.running_balance) AS option3_realtime_data
+
+FROM monthly_balance m
+JOIN balance_stats b ON m.customer_id=b.customer_id
+JOIN running_balance r ON m.customer_id=r.customer_id
+GROUP BY m.txn_month
+ORDER BY m.txn_month;
+````
