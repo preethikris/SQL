@@ -1,0 +1,44 @@
+#Queries
+#1. Add index name fast on name
+create index fast on cereals_data(name);
+#2. Describe the schema of table
+desc cereals_data;
+#3. Create view name as see where users can not see type column [first run appropriate query then create view]
+Create view see as select name,mfr,type,calories,protein,sodium,fiber,carbo,sugars,potass,vitamins,shelf,weight,cups,rating,status,HL_calories from cereals_data;
+select* from see;
+#4. Rename the view as saw
+Rename table see to saw;
+#5. Count how many are cold cereals
+select count(*) from cereals_data where type='C';
+#6. Count how many cereals are kept in shelf 3
+select count(*) from cereals_data where shelf=3;
+#7. Arrange the table from high to low according to ratings
+select * from cereals_data order by rating desc;
+#8. Suggest some column/s which can be Primary key
+Select *,row_number() over()as KI_Id from  cereals_data;
+#9. Find average of calories of hot cereal and cold cereal in one query
+select type,avg(calories) from cereals_data group by type;
+#10. Add new column as HL_Calories where more than average calories should be categorized as HIGH and less than average calories should be categorized as LOW
+alter table cereals_data add column HL_Calories varchar(30);
+WITH cte45 as (select avg(calories) as AVG from cereals_data)
+Update cereals_data set HL_Calories=case when calories>(Select AVG from cte45) then 'High' else 'Low' end;
+#11. List only those cereals whose name begins with B
+SElect name from cereals_data where name like 'B%';
+#12. List only those cereals whose name begins with F
+SElect name from cereals_data where name like 'F%';
+#13. List only those cereals whose name ends with s
+SElect name from cereals_data where name like '%S';
+#14. Select only those records which are HIGH in column HL_calories and mail to jeevan.raj@imarticus.com [save/name your file as <your first name_cereals_high>]
+#15. Find maximum of ratings
+select max(rating) from cereals_data;
+#16. Find average ratings of those were High and Low calories
+select HL_Calories,avg(rating) from cereals_data group by HL_Calories;
+#17. Craete two examples of Sub Queries of your choice and give explanation in the script itself with remarks by using #
+select name from  cereals_data where calories>(select avg (calories) from  cereals_data);
+#18. Remove column fat
+alter table cereals_data 
+drop fat;
+#19. Count records for each manufacturer [mfr]
+select mfr,count(*) from  cereals_data group by mfr;
+#20. Select name, calories and ratings only 
+select name,calories,rating from  cereals_data;
